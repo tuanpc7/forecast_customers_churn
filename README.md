@@ -2,11 +2,11 @@
  
 ## Objective
 
-This file provides the credit card information and based on this data, we will try to forecast the customer who can higher chance to close account.
+This project aims to forecast the customers who can higher chance to close their credit card account.
 
 ## Data Source. 
 
-The data*set was downloaded from Kaggle. https://www.kaggle.com/c/1056lab-credit-card-customer-churn-prediction
+The data set was downloaded from Kaggle. https://www.kaggle.com/c/1056lab-credit-card-customer-churn-prediction
 
 ## Data Description
 
