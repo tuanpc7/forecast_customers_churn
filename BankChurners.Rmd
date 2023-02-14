@@ -199,7 +199,7 @@ conf_mat_dt
 
 # Compare and Evaluate
 
-The evaluation metric for this competition is AUC (Area Under the Curve) ROC (Receiver Operating Characteristics) curve.
+The evaluation metric for this project is AUC (Area Under the Curve) ROC (Receiver Operating Characteristics) curve.
 
 `rocit` is the main function of ROCit package. With the diagnostic score and the class of each observation, it calculates true positive rate (sensitivity) and false positive rate (1-Specificity) at convenient cutoff values to construct ROC curve. 
 
