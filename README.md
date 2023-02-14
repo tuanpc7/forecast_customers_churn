@@ -32,6 +32,7 @@ The data*set was downloaded from Kaggle. https://www.kaggle.com/c/1056lab-credit
   + **Avg_Utilization_Ratio**: Average ratio of credit card balances to credit card limit.
   + **Attrition**: 1=Closed, 0=Not closed
 
+
 ## Code Structure
 
 This project is done in R-programming, which is documented in R-markdown file called BankChurners.Rmd.
