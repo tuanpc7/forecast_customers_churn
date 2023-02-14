@@ -1,0 +1,234 @@
+---
+title: "Portfolio"
+author: "Tuan Trinh"
+date: "2022-12-17"
+output: html_document
+---
+
+
+## Dataset 1
+
+```{r}
+# load libraries
+library(tidyverse)
+library(readr)
+library(dplyr)
+library("Amelia")
+library(caTools) # for data partioning
+library(modelr)
+library(readr)
+library(caret)
+library(e1071)
+library(tidymodels)
+library(pROC)
+```
+
+```{r}
+# load & inspect dataset
+cc_raw <- read.csv("D:\\Data\\BankChurners.csv")
+```
+
+```{r}
+# inspect dataset
+dim(cc_raw)
+head(cc_raw)
+# missing values
+missing_rate_cc <- sapply(cc_raw, function(x) sum(is.na(x))/nrow(cc_raw))
+missing_rate_cc <- data.frame(missing_rate = missing_rate_cc)
+missing_rate_cc
+# arrange(missing_rate_cc, -missing_rate) # arrange missing values in decending order
+```
+
+There is no missing values in the data. 
+
+```{r}
+# Preprocess Data
+# selected the columns we care about
+cc_prepr <- cc_raw %>% select(Customer_Age,Gender,Dependent_count,Education_Level,Marital_Status,Income_Category,Card_Category,Credit_Limit, Attrition_Flag) 
+#----------------------------
+# Lets see which distinct types there are
+(distinct(cc_prepr, Income_Category))  # 6 types:$60K - $80K, Less than $40K ,$80K - $120K  ,$40K - $60K ,$120K + ,Unknown 
+(distinct(cc_prepr, Marital_Status))  # 4 types:  Married, Single, Divorced, Unknown 
+(distinct(cc_prepr, Card_Category))  # 4 types:  Blue, Gold, Siler, Platinum
+#----------------------------
+# Drop all the "unknown" rows from Marital_Status & Income_Category
+# 82x9, 82 rows must remove these rows
+cc_prepr <- cc_prepr %>% select(Customer_Age,Gender,Dependent_count,Education_Level,Marital_Status,Income_Category,Card_Category,Credit_Limit, Attrition_Flag) %>% filter(Marital_Status != "Unknown" , Income_Category != "Unknown",Education_Level !="Unknown")
+#----------------------------
+# shorten target variable Attrition_Flag for faster References  
+cc_prepr$Attrition_Flag[cc_prepr$Attrition_Flag == "Existing Customer"] <- "Current"
+cc_prepr$Attrition_Flag[cc_prepr$Attrition_Flag == "Attrited Customer"] <- "Exited"
+
+# convert categorical data into factor
+categorical_cols <- c("Gender", "Education_Level", "Marital_Status", "Income_Category", "Card_Category", "Attrition_Flag")
+cc_prepr[,categorical_cols] <- lapply(cc_prepr[, categorical_cols], factor)
+
+str(cc_prepr)
+```
+
+
+```{r Modeling2}
+#----------------------------
+# DATA PARTITIONING
+#----------------------------
+# Class Imbalance
+# Inspect the initial distribution of 2 class: Current/Exited in the dataset
+table(cc_prepr$Attrition_Flag)  # 84% of the data is in Current Set, which is highly imbalanced
+
+# Train/Test Split & Upsampling
+# In this case of very imbalanced outcomes - like a rare churners dataset. When splitting randomly, we might end up with a very unfortunate split. Imagine all the churner observations are in the test and none in the training set.
+# We will use the initial_split() function to make sure the distribution of 2 classes in train and test set are similar
+
+## Balance Split
+set.seed(9888)
+# Create the balanced data split
+exited_split <- initial_split(cc_prepr, prop = 0.75, strata = Attrition_Flag)
+# Proportion of 'Exited' outcomes in the training data
+counts_train <- table(training(exited_split)$Attrition_Flag)
+prop_yes_train <- counts_train["Exited"] / sum(counts_train)
+# Proportion of 'Exited' outcomes in the test data
+counts_test <- table(testing(exited_split)$Attrition_Flag)
+prop_yes_test <- counts_test["Exited"] / sum(counts_test)
+# print out to make sure the proportion of 2 class in both train/test are similar
+paste("Proportion of positive outcomes in training set:", round(prop_yes_train, 2))
+paste("Proportion of positive outcomes in test set:", round(prop_yes_test, 2))
+
+train_balanced <- training(exited_split)
+test_balanced <- testing(exited_split)
+
+## upsample
+# Here, I will use the upSample function from the `caret` package to perform upsampling technique.
+trainup<-upSample(x=train_balanced[,-ncol(train_balanced)],
+                  y=train_balanced$Attrition_Flag, yname = "Attrition_Flag")
+table(trainup$Attrition_Flag)  # after upsample, Current/Exited ratio are improved from 5968/1113 to 4476/4476
+```
+
+```{r Modeling3}
+#----------------------------
+#BUILD, PREDICT &  EVALUATE the Model
+#----------------------------
+# BUILD
+#----------------------------
+# Baseline Accuracy
+# Let's evaluate the model further, 
+# Since the majority class of the target (Y) variable has a #proportion of 0.84, the baseline accuracy is 84 percent.
+prop.table(table(cc_prepr$Attrition_Flag))
+```
+```{r}
+## Model 1: General Linear Method
+model_glm <- glm(Attrition_Flag ~ . , family="binomial",data = trainup)
+summary(model_glm)
+
+
+# Generate predictions
+pred_glm <- predict(model_glm, newdata = test_balanced)
+# Set cut-off threshold = 0.5
+pred_glm <- ifelse(pred_glm>=0.5, "Exited", "Current")
+
+# Add the true outcomes
+pred_combined_glm <- data.frame(predictions = factor(pred_glm))
+pred_combined_glm$true_class <- factor(test_balanced$Attrition_Flag)
+  
+# Print the first lines of the result
+pred_combined_glm
+
+# use the confusionMatrix() function from the caret package 
+conf_mat_glm <- confusionMatrix(pred_combined_glm$true_class, pred_combined_glm$predictions, positive = "Exited")
+
+# Print the matrix
+conf_mat_glm
+```
+
+
+```{r}
+## Model 2: Support Vector Machine (SVM)
+model_svm = svm(formula= Attrition_Flag ~ .,
+                 data= trainup,
+                 type= 'C-classification',
+                 kernel = 'radial')
+summary(model_svm)
+
+# predicting Test Set Results
+pred_svm = predict(model_svm, newdata = test_balanced)
+
+# Add the true outcomes
+pred_combined_svm <- data.frame(predictions = pred_svm)
+pred_combined_svm$true_class <- test_balanced$Attrition_Flag
+# convert to factor
+pred_combined_svm[,c("predictions", "true_class")] <- lapply(pred_combined_svm[, c("predictions", "true_class")], factor)
+
+# Print the first lines of the result
+pred_combined_svm
+
+# use the confusionMatrix() function from the caret package
+conf_mat_svm <- confusionMatrix(pred_combined_svm$true_class, pred_combined_svm$predictions, positive = "Exited")
+
+# Print the matrix
+conf_mat_svm
+```
+
+```{r}
+## Model 3: Decision Trees
+# Build the specification of the model
+tree_spec <- decision_tree() %>% 
+  set_engine("rpart") %>% 
+  set_mode("classification")
+
+# Train the model
+model_dt <- tree_spec %>% 
+  fit(formula = Attrition_Flag ~ ., data = trainup)
+
+# Generate predictions
+pred_dt = predict(model_dt, new_data = test_balanced)
+
+# Add the true outcomes
+pred_combined_dt <- data.frame(predictions = pred_dt$.pred_class)
+pred_combined_dt$true_class <- test_balanced$Attrition_Flag
+# # convert to factor
+# pred_combined_dt[,c("predictions", "true_class")] <- lapply(pred_combined_dt[, c("predictions", "true_class")], factor)
+
+# Print the first lines of the result
+pred_combined_dt
+
+# use the confusionMatrix() function from the caret package
+conf_mat_dt <- confusionMatrix(pred_combined_dt$true_class, pred_combined_dt$predictions, positive = "Exited")
+
+# Print the matrix
+conf_mat_dt
+```
+
+# Compare and Evaluate
+
+The evaluation metric for this competition is AUC (Area Under the Curve) ROC (Receiver Operating Characteristics) curve.
+
+`rocit` is the main function of ROCit package. With the diagnostic score and the class of each observation, it calculates true positive rate (sensitivity) and false positive rate (1-Specificity) at convenient cutoff values to construct ROC curve. 
+
+
+```{r}
+#calculate GLM AUC
+# library(pROC)
+roc_glm=roc(response=pred_combined_glm$true_class, 
+            predictor= factor(pred_combined_glm$predictions, ordered = TRUE), plot=FALSE)
+auc_glm<-auc(roc_glm)
+auc_glm
+
+#calculate SVM AUC
+roc_svm=roc(response=pred_combined_svm$true_class, 
+            predictor= factor(pred_combined_svm$predictions, ordered = TRUE), plot=FALSE)
+auc_svm<-auc(roc_svm)
+auc_svm
+
+#calculate DT AUC
+roc_dt=roc(response=pred_combined_dt$true_class, 
+           predictor= factor(pred_combined_dt$predictions, ordered = TRUE), plot=FALSE)
+auc_dt<-auc(roc_dt)
+auc_dt
+
+# compare
+auc_combine <- data.frame(AUC_AOC = c(auc_glm, auc_svm, auc_dt), 
+                          row.names = c("GLM", "SVM", "Decision Tree"))
+auc_combine
+```
+The higher AUC_AOC, the better the classifier. 
+So Decision Tree is the best model of all. 
+
