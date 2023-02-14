@@ -25,7 +25,7 @@ library(pROC)
 
 ```{r}
 # load & inspect dataset
-cc_raw <- read.csv("D:\\Data\\BankChurners.csv")
+cc_raw <- read.csv("data\\BankChurners.csv")
 ```
 
 ```{r}
