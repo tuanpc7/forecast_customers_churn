@@ -1,4 +1,4 @@
-# Forcast Customers Churn from Credit Cards Users Data
+# Forecast Customers Churn from Credit Cards Users Data
  
 ## Objective
 
